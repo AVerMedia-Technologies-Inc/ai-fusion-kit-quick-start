@@ -1,0 +1,79 @@
+name: demo
+
+services:
+  llm-server:
+    runtime: nvidia
+    network_mode: host
+    env_file: .env
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+      HUGGINGFACE_TOKEN: ${HUGGINGFACE_TOKEN}
+      HF_HOME: /data/models/huggingface
+    pull_policy: never
+    volumes:
+      - ${JETSON_CONTAINERS_DATA_PATH}:/data
+    image: dustynv/vllm:r36.4-cu129-24.04
+    command: vllm serve Qwen/Qwen2.5-VL-3B-Instruct-AWQ
+      --host=0.0.0.0
+      --port=9000
+      --max-num-seqs=1
+      --max-model-len=2048
+      --trust-remote-code
+      --chat-template-content-format=openai
+      --gpu-memory-utilization=0.35
+      --uvicorn-log-level=debug
+      --limit-mm-per-prompt='{"image":1,"video":0}'
+      --mm-processor-kwargs='{"max_pixels":200704,"size":{"shortest_edge":3136,"longest_edge":200704}}'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://0.0.0.0:9000/v1/models"]
+      interval: 20s
+      timeout: 60s
+      retries: 45
+      start_period: 15s
+  riva-server:
+    runtime: nvidia
+    init: true
+    attach: false
+    network_mode: host
+    pull_policy: never
+    env_file: .env
+    environment:
+      RIVA_SERVER_HTTP_PORT: 50000
+      NMT_REMOTE_ASR_SERVICE: 0.0.0.0:50051
+      NMT_REMOTE_TTS_SERVICE: 0.0.0.0:50051
+    volumes:
+      - ${RIVA_MODEL_PATH}:/data
+    image: nvcr.io/nvidia/riva/riva-speech:2.19.0-l4t-aarch64
+    command: start-riva
+      --riva-uri=0.0.0.0:50051
+      --asr_service=true
+      --tts_service=true
+      --nlp_service=true
+      &> /dev/null
+  app:
+    runtime: nvidia
+    pull_policy: never
+    image: ai-fusion-kit-demo:latest
+    network_mode: host
+    depends_on:
+      llm-server:
+        condition: service_started
+      riva-server:
+        condition: service_started
+        required: false
+    devices:
+      - /dev/snd
+    env_file: .env
+    environment:
+      - DISPLAY
+      - PULSE_SERVER=unix:/run/user/$UID/pulse/native
+    volumes:
+      - /run/user/$UID/gdm/Xauthority:/root/.Xauthority:ro
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - $HOME/.config/pulse/cookie:/root/.config/pulse/cookie:ro
+      - /run/user/$UID/pulse:/run/user/$UID/pulse
+      - /run/udev:/run/udev:ro
+      - /run/docker.sock:/run/docker.sock
+      - /opt/jetson-containers/data:/data
+    command: avt-vlm-demo
