@@ -111,7 +111,15 @@ create_override_file() {
     printf "  app:\n" >> "$OVERRIDE_FILEPATH"
 
     # Find all the video devices and AVerMedia HID devices
-    VIDEO_DEVICES=($(ls /dev/video*))
+    VIDEO_DEVICES=()
+    if ls /dev/video* >/dev/null 2>&1; then
+        VIDEO_DEVICES=($(ls /dev/video*))
+        printf "Found %d video device(s): %s\n" "${#VIDEO_DEVICES[@]}" "${VIDEO_DEVICES[*]}"
+    else
+        printf "${YELLOW}Warning: No video devices found (/dev/video*). The demo application may not work properly.${NC}\n"
+        printf "${YELLOW}         Please make sure you have a camera or video capture device connected.${NC}\n"
+    fi
+
     SUPPORTED_HID_DEVICE_SYMLINKS=(
         "/dev/as311hid"
     )
