@@ -107,8 +107,8 @@ create_override_file() {
         printf "Creating %s\n" "$OVERRIDE_FILE"
     fi
 
-    printf "services:\n" > "$OVERRIDE_FILEPATH"
-    printf "  app:\n" >> "$OVERRIDE_FILEPATH"
+    echo "services:" > "$OVERRIDE_FILEPATH"
+    echo "  app:" >> "$OVERRIDE_FILEPATH"
 
     # Find all the video devices and AVerMedia HID devices
     VIDEO_DEVICES=()
@@ -125,17 +125,47 @@ create_override_file() {
     )
 
     # Write the devices to the compose file
-    printf "    devices:\n" >> "$OVERRIDE_FILEPATH"
+    echo "    devices:" >> "$OVERRIDE_FILEPATH"
     for device in "${VIDEO_DEVICES[@]}"; do
-        printf "      - %s\n" "$device" >> "$OVERRIDE_FILEPATH"
+        echo "      - $device" >> "$OVERRIDE_FILEPATH"
     done
 
     for symlink in "${SUPPORTED_HID_DEVICE_SYMLINKS[@]}"; do
         if [ -e "$symlink" ]; then
-            printf "      - %s\n" "$symlink" >> "$OVERRIDE_FILEPATH"
-            printf "      - %s\n" "$(readlink -f "$symlink")" >> "$OVERRIDE_FILEPATH"
+            echo "      - $symlink" >> "$OVERRIDE_FILEPATH"
+            echo "      - $(readlink -f $symlink)" >> "$OVERRIDE_FILEPATH"
         fi
     done
+
+    # Configure Riva service
+    if [ "$USE_RIVA" = true ]; then
+        echo "    depends_on:" >> "$OVERRIDE_FILEPATH"
+        echo "      riva-server:" >> "$OVERRIDE_FILEPATH"
+        echo "        condition: service_started" >> "$OVERRIDE_FILEPATH"
+
+    cat <<EOF >> "$OVERRIDE_FILEPATH"
+  riva-server:
+    runtime: nvidia
+    init: true
+    attach: false
+    network_mode: host
+    pull_policy: never
+    env_file: .env
+    environment:
+      RIVA_SERVER_HTTP_PORT: 50000
+      NMT_REMOTE_ASR_SERVICE: 0.0.0.0:50051
+      NMT_REMOTE_TTS_SERVICE: 0.0.0.0:50051
+    volumes:
+      - ${RIVA_MODEL_PATH}:/data
+    image: nvcr.io/nvidia/riva/riva-speech:2.19.0-l4t-aarch64
+    command: start-riva
+      --riva-uri=0.0.0.0:50051
+      --asr_service=true
+      --tts_service=true
+      --nlp_service=true
+      &> /dev/null
+EOF
+    fi
 }
 
 load_or_create_env_file() {
@@ -262,8 +292,8 @@ find_riva_model_directory() {
 
 init_terminal
 
-create_override_file
 load_or_create_env_file
+create_override_file
 printf "\n"
 
 find_jetson_containers
