@@ -672,7 +672,8 @@ install_demo_apps() {
 
     # Install vLLM image for Jetson
     print_info "Pulling vLLM Docker image ($VLLM_IMAGE) for Jetson..."
-    if docker pull $VLLM_IMAGE 2>&1 | sed "s/^/  /"; then
+    docker pull $VLLM_IMAGE 2>&1 | sed "s/^/  /"
+    if docker images --format "{{.Repository}}:{{.Tag}}" | grep -q "^${VLLM_IMAGE}$"; then
         print_success "vLLM image downloaded successfully"
     else
         print_error "Failed to pull vLLM image"
@@ -684,22 +685,26 @@ install_demo_apps() {
     # Download VLM model for demo
     print_info "Downloading VLM model for demo ($DEMO_VLM_MODEL)..."
     printf "  This may take several minutes depending on your internet connection...\n"
-    if jetson-containers run $VLLM_IMAGE huggingface-cli download $DEMO_VLM_MODEL \
-        2>&1 | sed "s/^/  /"; then
+
+    local options="--rm --volume $(jetson-containers data):/data"
+    if docker run $options $VLLM_IMAGE huggingface-cli download $DEMO_VLM_MODEL 2>&1 | sed "s/^/  /"; then
         print_success "$DEMO_VLM_MODEL downloaded successfully"
     else
         print_error "Failed to download VLM model for demo"
         printf "  You can try again manually with:\n"
-        printf "  ${CYAN}jetson-containers run %s huggingface-cli download %s${NC}\n" "$VLLM_IMAGE" "$DEMO_VLM_MODEL"
+        printf "  ${CYAN}docker run $options $VLLM_IMAGE huggingface-cli download $DEMO_VLM_MODEL${NC}\n"
         return 1
     fi
 
     # Download demo image
     print_info "Downloading AI Fusion Kit demo image..."
-    if docker pull $DEMO_IMAGE 2>&1 | sed "s/^/  /"; then
+    docker pull $DEMO_IMAGE 2>&1 | sed "s/^/  /"
+    if docker images --format "{{.Repository}}:{{.Tag}}" | grep -q "^${DEMO_IMAGE}$"; then
         print_success "AI Fusion Kit demo image downloaded successfully"
     else
         print_error "Failed to download AI Fusion Kit demo image"
+        printf "  You can try again manually with:\n"
+        printf "  ${CYAN}docker pull $DEMO_IMAGE${NC}\n"
         return 1
     fi
 
