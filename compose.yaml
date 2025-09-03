@@ -10,6 +10,7 @@ services:
       NVIDIA_DRIVER_CAPABILITIES: compute,utility
       HUGGINGFACE_TOKEN: ${HUGGINGFACE_TOKEN}
       HF_HOME: /data/models/huggingface
+      TRANSFORMERS_OFFLINE: 1
     pull_policy: never
     volumes:
       - ${JETSON_CONTAINERS_DATA_PATH}:/data
